@@ -9,9 +9,13 @@ class Settings(BaseSettings):
     # PostgreSQL
     database_url: str = "postgresql://postgres:postgres@localhost:5432/prospecting"
 
-    # Future modules settings can be added here
-    # ANTHROPIC_API_KEY: str = ""
-    # INSTANTLY_API_KEY: str = ""
+    # Default SMTP (can be overridden per campaign)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from_name: str = "Sales Prospecting Tool"
+    smtp_from_email: str = ""
 
     class Config:
         env_file = ".env"
