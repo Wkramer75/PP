@@ -276,7 +276,8 @@ export default function ScrapingPage() {
           "Utilisez les onglets (overview, emails, social, tech, links, meta) pour explorer les donnees",
           "Mode Batch : collez plusieurs URLs (une par ligne) pour scraper plusieurs sites d'un coup",
           "Cliquez sur \"Exporter CSV\" pour telecharger tous vos resultats",
-          "Note : certains sites (Doctolib, etc.) bloquent le scraping automatique. Essayez avec des sites publics d'entreprises.",
+          "Moteur Selenium : le scraping utilise un navigateur Chrome automatise pour charger les sites JavaScript (SPA, Doctolib, etc.)",
+          "Prerequis : Google Chrome doit etre installe sur votre PC. Le driver se telecharge automatiquement.",
         ]}
       />
 

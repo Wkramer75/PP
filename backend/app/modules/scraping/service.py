@@ -5,9 +5,13 @@ import io
 from urllib.parse import urlparse, urljoin
 from collections import Counter
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
@@ -52,39 +56,112 @@ TECH_SIGNATURES = {
     "matomo": "Matomo", "plausible": "Plausible",
 }
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Cache-Control": "max-age=0",
-}
-
 FAKE_EMAIL_DOMAINS = {
     "example.com", "email.com", "yourdomain.com", "domain.com",
     "sentry.io", "wixpress.com", "test.com",
 }
 
 
-def _get_session() -> requests.Session:
-    """Create a requests Session with retry logic."""
-    session = requests.Session()
-    retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount("http://", adapter)
-    session.mount("https://", adapter)
-    session.headers.update(HEADERS)
-    return session
+# ── Selenium browser ─────────────────────────────────────────────────────────
+
+def _create_driver() -> webdriver.Chrome:
+    """Create a headless Chrome browser instance."""
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    )
+    options.add_argument("--lang=fr-FR")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+    options.page_load_strategy = "normal"
+
+    driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(45)
+
+    # Hide webdriver flag
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+    })
+
+    return driver
+
+
+def _fetch_page(url: str) -> tuple[str, str, int, float]:
+    """
+    Fetch a page using Selenium, wait for JS to render, return
+    (html, current_url, status_code_approx, elapsed_seconds).
+    """
+    driver = _create_driver()
+    start = time.time()
+    try:
+        driver.get(url)
+
+        # Wait for body to be present (page loaded)
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+
+        # Extra wait for JS-heavy pages to render dynamic content
+        time.sleep(2)
+
+        # Try to dismiss cookie banners (common on FR sites)
+        _try_dismiss_cookies(driver)
+
+        # Scroll down to trigger lazy-loaded content
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
+        time.sleep(1)
+
+        html = driver.page_source
+        final_url = driver.current_url
+        elapsed = round(time.time() - start, 3)
+
+        # Selenium doesn't give HTTP status directly; infer from page content
+        status = 200
+        if "404" in (driver.title or "") or "not found" in (driver.title or "").lower():
+            status = 404
+
+        return html, final_url, status, elapsed
+
+    except TimeoutException:
+        raise ValueError("Le site met trop de temps a repondre (timeout 45s)")
+    except WebDriverException as e:
+        msg = str(e)[:200]
+        if "net::ERR_NAME_NOT_RESOLVED" in msg:
+            raise ValueError("Impossible de trouver ce site. Verifiez l'URL.")
+        elif "net::ERR_CONNECTION_REFUSED" in msg:
+            raise ValueError("Connexion refusee par le site.")
+        elif "net::ERR_CONNECTION_TIMED_OUT" in msg:
+            raise ValueError("Le site ne repond pas (timeout).")
+        else:
+            raise ValueError(f"Erreur du navigateur: {msg}")
+    finally:
+        driver.quit()
+
+
+def _try_dismiss_cookies(driver):
+    """Try to click common cookie consent buttons."""
+    selectors = [
+        "button[id*='accept']", "button[id*='cookie']", "button[id*='consent']",
+        "button[class*='accept']", "button[class*='cookie']", "button[class*='consent']",
+        "a[id*='accept']", "#didomi-notice-agree-button", ".cc-accept",
+        "[data-testid='cookie-accept']", "#onetrust-accept-btn-handler",
+    ]
+    for sel in selectors:
+        try:
+            btn = driver.find_element(By.CSS_SELECTOR, sel)
+            if btn.is_displayed():
+                btn.click()
+                time.sleep(0.5)
+                return
+        except Exception:
+            continue
 
 
 # ── Extraction helpers ────────────────────────────────────────────────────────
@@ -152,7 +229,7 @@ def _extract_social_media(links: list[str]) -> dict:
     return social
 
 
-def _detect_technologies(soup: BeautifulSoup, html: str, response_headers: dict) -> list[str]:
+def _detect_technologies(soup: BeautifulSoup, html: str) -> list[str]:
     techs = set()
     html_lower = html.lower()
     for signature, tech in TECH_SIGNATURES.items():
@@ -161,12 +238,6 @@ def _detect_technologies(soup: BeautifulSoup, html: str, response_headers: dict)
     generator = soup.find("meta", attrs={"name": "generator"})
     if generator and generator.get("content"):
         techs.add(generator["content"].split("/")[0].strip())
-    server = response_headers.get("server", "")
-    if server:
-        techs.add(f"Server: {server}")
-    powered_by = response_headers.get("x-powered-by", "")
-    if powered_by:
-        techs.add(powered_by)
     return sorted(techs)
 
 
@@ -204,46 +275,22 @@ def _detect_language(soup: BeautifulSoup) -> str | None:
 # ── Main scraping function ────────────────────────────────────────────────────
 
 def scrape_url(url: str, db: Session, depth: int = 0, parent_id: int | None = None) -> ScrapedData:
-    """Scrape a URL with full extraction, persist results."""
-    session = _get_session()
-    start_time = time.time()
+    """Scrape a URL using Selenium (headless Chrome), extract data, persist results."""
+    html, final_url, status_code, elapsed = _fetch_page(str(url))
 
-    try:
-        response = session.get(str(url), timeout=30, allow_redirects=True, verify=True)
-        response.raise_for_status()
-    except requests.exceptions.Timeout:
-        raise ValueError(f"Le site met trop de temps a repondre (timeout 30s)")
-    except requests.exceptions.ConnectionError:
-        raise ValueError(f"Impossible de se connecter au site. Verifiez l'URL.")
-    except requests.exceptions.HTTPError as e:
-        code = e.response.status_code if e.response is not None else "?"
-        if code == 403:
-            raise ValueError(f"Acces refuse par le site (403 Forbidden). Le site bloque les scrapers.")
-        elif code == 404:
-            raise ValueError(f"Page introuvable (404). Verifiez l'URL.")
-        elif code == 429:
-            raise ValueError(f"Trop de requetes (429). Reessayez plus tard.")
-        else:
-            raise ValueError(f"Erreur HTTP {code}")
-
-    elapsed = round(time.time() - start_time, 3)
-
-    # Handle encoding properly
-    response.encoding = response.apparent_encoding or "utf-8"
-    html = response.text
     soup = BeautifulSoup(html, "html.parser")
 
     title = soup.title.string.strip() if soup.title and soup.title.string else None
     text = soup.get_text(separator=" ", strip=True)
-    domain = _extract_domain(url)
+    domain = _extract_domain(final_url)
 
     emails = _extract_emails(text, html)
     phones = _extract_phones(text)
-    all_links, internal, external = _extract_links(soup, url)
+    all_links, internal, external = _extract_links(soup, final_url)
     social = _extract_social_media(all_links)
-    techs = _detect_technologies(soup, html, dict(response.headers))
+    techs = _detect_technologies(soup, html)
     desc, keywords, og = _extract_meta(soup)
-    images = _extract_images(soup, url)
+    images = _extract_images(soup, final_url)
     lang = _detect_language(soup)
     word_count = len(text.split())
 
@@ -263,8 +310,8 @@ def scrape_url(url: str, db: Session, depth: int = 0, parent_id: int | None = No
         social_media=social,
         technologies=techs,
         images=images,
-        headers=dict(list(response.headers.items())[:20]),
-        status_code=response.status_code,
+        headers={},
+        status_code=status_code,
         response_time=elapsed,
         word_count=word_count,
         language=lang,
