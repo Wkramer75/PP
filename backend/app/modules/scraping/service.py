@@ -6,6 +6,8 @@ from urllib.parse import urlparse, urljoin
 from collections import Counter
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
@@ -21,71 +23,68 @@ PHONE_PATTERN = re.compile(
 )
 
 SOCIAL_DOMAINS = {
-    "facebook.com": "facebook",
-    "fb.com": "facebook",
-    "twitter.com": "twitter",
-    "x.com": "twitter",
-    "linkedin.com": "linkedin",
-    "instagram.com": "instagram",
-    "youtube.com": "youtube",
-    "tiktok.com": "tiktok",
-    "pinterest.com": "pinterest",
-    "github.com": "github",
-    "t.me": "telegram",
-    "wa.me": "whatsapp",
+    "facebook.com": "facebook", "fb.com": "facebook",
+    "twitter.com": "twitter", "x.com": "twitter",
+    "linkedin.com": "linkedin", "instagram.com": "instagram",
+    "youtube.com": "youtube", "tiktok.com": "tiktok",
+    "pinterest.com": "pinterest", "github.com": "github",
+    "t.me": "telegram", "wa.me": "whatsapp",
 }
 
 TECH_SIGNATURES = {
-    "wp-content": "WordPress",
-    "wp-includes": "WordPress",
-    "Shopify": "Shopify",
-    "shopify": "Shopify",
-    "wix.com": "Wix",
-    "squarespace": "Squarespace",
-    "drupal": "Drupal",
-    "joomla": "Joomla",
-    "magento": "Magento",
-    "prestashop": "PrestaShop",
-    "webflow": "Webflow",
-    "next/static": "Next.js",
-    "__next": "Next.js",
-    "__nuxt": "Nuxt.js",
-    "gatsby": "Gatsby",
-    "react": "React",
-    "angular": "Angular",
-    "vue.js": "Vue.js",
-    "vue.min.js": "Vue.js",
-    "jquery": "jQuery",
-    "bootstrap": "Bootstrap",
-    "tailwind": "Tailwind CSS",
-    "google-analytics": "Google Analytics",
-    "gtag": "Google Analytics",
-    "gtm.js": "Google Tag Manager",
-    "fbevents.js": "Facebook Pixel",
-    "hotjar": "Hotjar",
-    "cloudflare": "Cloudflare",
-    "stripe.com": "Stripe",
-    "recaptcha": "reCAPTCHA",
-    "hubspot": "HubSpot",
-    "intercom": "Intercom",
-    "crisp.chat": "Crisp",
-    "zendesk": "Zendesk",
-    "mailchimp": "Mailchimp",
-    "typeform": "Typeform",
-    "cookiebot": "Cookiebot",
-    "matomo": "Matomo",
-    "plausible": "Plausible",
+    "wp-content": "WordPress", "wp-includes": "WordPress",
+    "Shopify": "Shopify", "shopify": "Shopify",
+    "wix.com": "Wix", "squarespace": "Squarespace",
+    "drupal": "Drupal", "joomla": "Joomla",
+    "magento": "Magento", "prestashop": "PrestaShop",
+    "webflow": "Webflow", "next/static": "Next.js", "__next": "Next.js",
+    "__nuxt": "Nuxt.js", "gatsby": "Gatsby",
+    "react": "React", "angular": "Angular",
+    "vue.js": "Vue.js", "vue.min.js": "Vue.js",
+    "jquery": "jQuery", "bootstrap": "Bootstrap", "tailwind": "Tailwind CSS",
+    "google-analytics": "Google Analytics", "gtag": "Google Analytics",
+    "gtm.js": "Google Tag Manager", "fbevents.js": "Facebook Pixel",
+    "hotjar": "Hotjar", "cloudflare": "Cloudflare",
+    "stripe.com": "Stripe", "recaptcha": "reCAPTCHA",
+    "hubspot": "HubSpot", "intercom": "Intercom",
+    "crisp.chat": "Crisp", "zendesk": "Zendesk",
+    "mailchimp": "Mailchimp", "cookiebot": "Cookiebot",
+    "matomo": "Matomo", "plausible": "Plausible",
 }
 
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    )
+        "Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
 }
 
-FAKE_EMAIL_DOMAINS = {"example.com", "email.com", "yourdomain.com", "domain.com", "sentry.io", "wixpress.com"}
+FAKE_EMAIL_DOMAINS = {
+    "example.com", "email.com", "yourdomain.com", "domain.com",
+    "sentry.io", "wixpress.com", "test.com",
+}
+
+
+def _get_session() -> requests.Session:
+    """Create a requests Session with retry logic."""
+    session = requests.Session()
+    retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    session.headers.update(HEADERS)
+    return session
 
 
 # ── Extraction helpers ────────────────────────────────────────────────────────
@@ -96,17 +95,13 @@ def _extract_domain(url: str) -> str:
 
 
 def _extract_emails(text: str, html: str) -> list[str]:
-    """Extract emails from text and href mailto links, filtering fakes."""
     emails = set(EMAIL_PATTERN.findall(text))
-    # Also look in mailto: links
-    from bs4 import BeautifulSoup as BS
-    soup = BS(html, "html.parser")
+    soup = BeautifulSoup(html, "html.parser")
     for a in soup.find_all("a", href=True):
         if a["href"].startswith("mailto:"):
             email = a["href"].replace("mailto:", "").split("?")[0].strip()
             if EMAIL_PATTERN.match(email):
                 emails.add(email)
-    # Filter out fake/example emails and image filenames
     filtered = []
     for e in emails:
         domain = e.split("@")[1].lower()
@@ -120,18 +115,15 @@ def _extract_phones(text: str) -> list[str]:
     phones = set()
     for p in raw:
         cleaned = p.strip()
-        if len(cleaned) >= 10 and any(c.isdigit() for c in cleaned):
-            digit_count = sum(1 for c in cleaned if c.isdigit())
-            if digit_count >= 7:
-                phones.add(cleaned)
+        digit_count = sum(1 for c in cleaned if c.isdigit())
+        if len(cleaned) >= 10 and digit_count >= 7:
+            phones.add(cleaned)
     return sorted(phones)
 
 
 def _extract_links(soup: BeautifulSoup, base_url: str) -> tuple[list[str], list[str], list[str]]:
-    """Returns (all_links, internal_links, external_links)."""
     base_domain = _extract_domain(base_url)
     all_links, internal, external = [], [], []
-
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
         if href.startswith(("#", "javascript:", "tel:", "mailto:")):
@@ -145,12 +137,10 @@ def _extract_links(soup: BeautifulSoup, base_url: str) -> tuple[list[str], list[
             internal.append(full_url)
         else:
             external.append(full_url)
-
     return sorted(set(all_links)), sorted(set(internal)), sorted(set(external))
 
 
 def _extract_social_media(links: list[str]) -> dict:
-    """Detect social media profile URLs."""
     social = {}
     for link in links:
         domain = _extract_domain(link)
@@ -163,58 +153,45 @@ def _extract_social_media(links: list[str]) -> dict:
 
 
 def _detect_technologies(soup: BeautifulSoup, html: str, response_headers: dict) -> list[str]:
-    """Detect technologies used on the page."""
     techs = set()
     html_lower = html.lower()
-
-    # Check HTML content for signatures
     for signature, tech in TECH_SIGNATURES.items():
         if signature.lower() in html_lower:
             techs.add(tech)
-
-    # Check meta generator tag
     generator = soup.find("meta", attrs={"name": "generator"})
     if generator and generator.get("content"):
         techs.add(generator["content"].split("/")[0].strip())
-
-    # Check response headers
     server = response_headers.get("server", "")
     if server:
         techs.add(f"Server: {server}")
     powered_by = response_headers.get("x-powered-by", "")
     if powered_by:
         techs.add(powered_by)
-
     return sorted(techs)
 
 
 def _extract_meta(soup: BeautifulSoup) -> tuple[str | None, list[str], dict]:
-    """Extract meta description, keywords, and OpenGraph data."""
     desc_tag = soup.find("meta", attrs={"name": "description"})
     desc = desc_tag["content"].strip() if desc_tag and desc_tag.get("content") else None
-
     kw_tag = soup.find("meta", attrs={"name": "keywords"})
     keywords = []
     if kw_tag and kw_tag.get("content"):
         keywords = [k.strip() for k in kw_tag["content"].split(",") if k.strip()]
-
     og = {}
     for tag in soup.find_all("meta", attrs={"property": True}):
         prop = tag.get("property", "")
         if prop.startswith("og:"):
             og[prop.replace("og:", "")] = tag.get("content", "")
-
     return desc, keywords, og
 
 
 def _extract_images(soup: BeautifulSoup, base_url: str) -> list[str]:
-    """Extract image URLs."""
     images = []
     for img in soup.find_all("img", src=True):
         src = urljoin(base_url, img["src"])
         if src.startswith(("http://", "https://")):
             images.append(src)
-    return sorted(set(images))[:50]  # limit to 50
+    return sorted(set(images))[:50]
 
 
 def _detect_language(soup: BeautifulSoup) -> str | None:
@@ -228,11 +205,31 @@ def _detect_language(soup: BeautifulSoup) -> str | None:
 
 def scrape_url(url: str, db: Session, depth: int = 0, parent_id: int | None = None) -> ScrapedData:
     """Scrape a URL with full extraction, persist results."""
+    session = _get_session()
     start_time = time.time()
-    response = requests.get(str(url), headers=HEADERS, timeout=15)
-    response.raise_for_status()
+
+    try:
+        response = session.get(str(url), timeout=30, allow_redirects=True, verify=True)
+        response.raise_for_status()
+    except requests.exceptions.Timeout:
+        raise ValueError(f"Le site met trop de temps a repondre (timeout 30s)")
+    except requests.exceptions.ConnectionError:
+        raise ValueError(f"Impossible de se connecter au site. Verifiez l'URL.")
+    except requests.exceptions.HTTPError as e:
+        code = e.response.status_code if e.response is not None else "?"
+        if code == 403:
+            raise ValueError(f"Acces refuse par le site (403 Forbidden). Le site bloque les scrapers.")
+        elif code == 404:
+            raise ValueError(f"Page introuvable (404). Verifiez l'URL.")
+        elif code == 429:
+            raise ValueError(f"Trop de requetes (429). Reessayez plus tard.")
+        else:
+            raise ValueError(f"Erreur HTTP {code}")
+
     elapsed = round(time.time() - start_time, 3)
 
+    # Handle encoding properly
+    response.encoding = response.apparent_encoding or "utf-8"
     html = response.text
     soup = BeautifulSoup(html, "html.parser")
 
@@ -431,7 +428,6 @@ def get_all_jobs(db: Session, skip: int = 0, limit: int = 20) -> list[ScrapingJo
 
 
 def export_scrapes_csv(db: Session, scrape_ids: list[int] | None = None) -> str:
-    """Export scraping results to CSV string."""
     query = db.query(ScrapedData)
     if scrape_ids:
         query = query.filter(ScrapedData.id.in_(scrape_ids))
@@ -445,10 +441,7 @@ def export_scrapes_csv(db: Session, scrape_ids: list[int] | None = None) -> str:
     ])
     for s in scrapes:
         writer.writerow([
-            s.id,
-            s.url,
-            s.domain,
-            s.title,
+            s.id, s.url, s.domain, s.title,
             "; ".join(s.extracted_emails or []),
             "; ".join(s.extracted_phones or []),
             "; ".join(f"{k}: {v}" for k, v in (s.social_media or {}).items()),

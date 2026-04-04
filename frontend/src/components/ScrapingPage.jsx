@@ -7,16 +7,45 @@ const s = {
   input: { flex: 1, padding: "0.75rem 1rem", fontSize: "1rem", border: "1px solid #ddd", borderRadius: 8, outline: "none" },
   btn: (color = "#4361ee") => ({ padding: "0.75rem 1.5rem", fontSize: "0.95rem", fontWeight: 600, color: "#fff", background: color, border: "none", borderRadius: 8, cursor: "pointer" }),
   btnSm: (color = "#4361ee") => ({ padding: "0.4rem 0.8rem", fontSize: "0.8rem", fontWeight: 600, color: "#fff", background: color, border: "none", borderRadius: 6, cursor: "pointer" }),
+  btnDisabled: { opacity: 0.6, cursor: "not-allowed" },
   tag: (color = "#4361ee") => ({ display: "inline-block", background: color + "15", color, padding: "0.2rem 0.5rem", borderRadius: 6, margin: "0.15rem", fontSize: "0.8rem", wordBreak: "break-all" }),
   section: { marginTop: "1rem" },
   sectionTitle: { fontSize: "1rem", fontWeight: 600, marginBottom: "0.5rem", color: "#4361ee" },
-  error: { color: "#e63946", marginTop: "0.75rem" },
+  error: { background: "#fef2f2", color: "#dc2626", padding: "0.75rem 1rem", borderRadius: 8, marginTop: "0.75rem", fontSize: "0.9rem" },
+  success: { background: "#f0fdf4", color: "#16a34a", padding: "0.75rem 1rem", borderRadius: 8, marginTop: "0.75rem", fontSize: "0.9rem" },
   tabs: { display: "flex", gap: "0.5rem", marginBottom: "1rem" },
   tab: (active) => ({ padding: "0.5rem 1rem", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", background: active ? "#4361ee" : "#e8e8e8", color: active ? "#fff" : "#333", border: "none" }),
   grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" },
-  link: { display: "block", color: "#4361ee", fontSize: "0.8rem", wordBreak: "break-all", marginBottom: "0.2rem" },
+  link: { display: "block", color: "#4361ee", fontSize: "0.8rem", wordBreak: "break-all", marginBottom: "0.2rem", textDecoration: "none" },
   meta: { fontSize: "0.8rem", color: "#888" },
+  guide: { background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "1.25rem", marginBottom: "1.5rem" },
+  guideTitle: { fontSize: "1rem", fontWeight: 700, color: "#1e40af", marginBottom: "0.75rem" },
+  guideStep: { display: "flex", gap: "0.75rem", marginBottom: "0.6rem", fontSize: "0.9rem", color: "#1e3a5f" },
+  guideNumber: { background: "#4361ee", color: "#fff", borderRadius: "50%", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, flexShrink: 0 },
+  guideToggle: { background: "none", border: "none", color: "#4361ee", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, padding: 0 },
 };
+
+function Guide({ title, steps, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={s.guide}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={s.guideTitle}>{title}</div>
+        <button style={s.guideToggle} onClick={() => setOpen(!open)}>{open ? "Masquer" : "Voir le guide"}</button>
+      </div>
+      {open && (
+        <div style={{ marginTop: "0.5rem" }}>
+          {steps.map((step, i) => (
+            <div key={i} style={s.guideStep}>
+              <div style={s.guideNumber}>{i + 1}</div>
+              <div>{step}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ResultDetail({ result }) {
   const [tab, setTab] = useState("overview");
@@ -27,7 +56,7 @@ function ResultDetail({ result }) {
       <h3 style={{ margin: 0 }}>{result.title || "Sans titre"}</h3>
       <p style={{ ...s.meta, margin: "0.25rem 0" }}>{result.url}</p>
       <div style={{ ...s.meta, marginBottom: "0.75rem" }}>
-        Status: {result.status_code} | {result.response_time}s | {result.word_count} mots | {result.language || "?"}
+        Status: {result.status_code} | {result.response_time}s | {result.word_count} mots | Langue: {result.language || "?"}
       </div>
 
       <div style={s.tabs}>
@@ -54,7 +83,7 @@ function ResultDetail({ result }) {
 
       {tab === "emails" && (
         <div>
-          {result.extracted_emails.length === 0 && <p style={s.meta}>Aucun email trouve</p>}
+          {result.extracted_emails.length === 0 && <p style={s.meta}>Aucun email trouve sur cette page</p>}
           {result.extracted_emails.map((e, i) => <span key={i} style={s.tag("#4361ee")}>{e}</span>)}
           {result.extracted_phones.length > 0 && (
             <div style={s.section}>
@@ -91,12 +120,14 @@ function ResultDetail({ result }) {
             {result.internal_links.slice(0, 15).map((l, i) => (
               <a key={i} href={l} target="_blank" rel="noopener noreferrer" style={s.link}>{l}</a>
             ))}
+            {result.internal_links.length > 15 && <p style={s.meta}>... et {result.internal_links.length - 15} autres</p>}
           </div>
           <div>
             <div style={s.sectionTitle}>Externes ({result.external_links.length})</div>
             {result.external_links.slice(0, 15).map((l, i) => (
               <a key={i} href={l} target="_blank" rel="noopener noreferrer" style={s.link}>{l}</a>
             ))}
+            {result.external_links.length > 15 && <p style={s.meta}>... et {result.external_links.length - 15} autres</p>}
           </div>
         </div>
       )}
@@ -127,29 +158,42 @@ function ResultDetail({ result }) {
 export default function ScrapingPage() {
   const [url, setUrl] = useState("");
   const [batchUrls, setBatchUrls] = useState("");
-  const [mode, setMode] = useState("single"); // single, batch
+  const [mode, setMode] = useState("single");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API}/api/scraping/`).then((r) => r.json()).then(setHistory).catch(() => {});
+    fetch(`${API}/api/scraping/`)
+      .then((r) => { if (!r.ok) throw new Error("Erreur serveur"); return r.json(); })
+      .then(setHistory)
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false));
   }, []);
 
   const handleScrape = async (e) => {
     e.preventDefault();
-    setLoading(true); setError(null); setResult(null);
+    if (!url.trim()) return;
+    setLoading(true); setError(null); setResult(null); setSuccess(null);
     try {
       const res = await fetch(`${API}/api/scraping/`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
       const data = await res.json();
-      setResult(data); setHistory((p) => [data, ...p]); setUrl("");
-    } catch (err) { setError(err.message); }
+      if (!res.ok) throw new Error(data.detail || "Erreur lors du scraping");
+      setResult(data);
+      setHistory((p) => [data, ...p]);
+      setSelectedId(data.id);
+      setUrl("");
+      setSuccess(`Scraping termine ! ${data.extracted_emails.length} emails, ${data.extracted_phones.length} telephones, ${(data.extracted_links || []).length} liens trouves.`);
+    } catch (err) {
+      setError(err.message || "Impossible de contacter le serveur. Verifiez que le backend tourne.");
+    }
     finally { setLoading(false); }
   };
 
@@ -157,30 +201,42 @@ export default function ScrapingPage() {
     e.preventDefault();
     const urls = batchUrls.split("\n").map((u) => u.trim()).filter(Boolean);
     if (!urls.length) return;
-    setLoading(true); setError(null); setResult(null);
+    setLoading(true); setError(null); setResult(null); setSuccess(null);
     try {
       const res = await fetch(`${API}/api/scraping/batch`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ urls, name: `Batch ${urls.length} URLs` }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
-      await res.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Erreur batch");
+      setSuccess(`Batch termine ! ${data.completed_urls} reussis, ${data.failed_urls} echecs sur ${data.total_urls} URLs.`);
+      setBatchUrls("");
       const updated = await fetch(`${API}/api/scraping/`).then((r) => r.json());
-      setHistory(updated); setBatchUrls("");
-    } catch (err) { setError(err.message); }
+      setHistory(updated);
+    } catch (err) {
+      setError(err.message || "Erreur lors du batch scraping.");
+    }
     finally { setLoading(false); }
   };
 
-  const handleExport = () => {
-    window.open(`${API}/api/scraping/export`, "_blank");
-  };
+  const handleExport = () => { window.open(`${API}/api/scraping/export`, "_blank"); };
 
   const viewDetail = async (id) => {
     try {
       const res = await fetch(`${API}/api/scraping/${id}`);
+      if (!res.ok) throw new Error();
       const data = await res.json();
       setResult(data); setSelectedId(id);
-    } catch (err) { /* ignore */ }
+    } catch { setError("Impossible de charger ce resultat."); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Supprimer ce resultat ?")) return;
+    try {
+      await fetch(`${API}/api/scraping/${id}`, { method: "DELETE" });
+      setHistory((p) => p.filter((h) => h.id !== id));
+      if (selectedId === id) { setResult(null); setSelectedId(null); }
+    } catch { /* ignore */ }
   };
 
   return (
@@ -190,41 +246,63 @@ export default function ScrapingPage() {
         <button style={s.btnSm("#10b981")} onClick={handleExport}>Exporter CSV</button>
       </div>
 
+      <Guide
+        title="Comment utiliser le Scraping ?"
+        defaultOpen={history.length === 0}
+        steps={[
+          "Collez l'URL d'un site web dans le champ ci-dessous (ex: https://www.entreprise.fr)",
+          "Cliquez sur \"Scraper\" et attendez quelques secondes",
+          "Les resultats s'affichent : emails, telephones, liens, reseaux sociaux et technologies detectees",
+          "Utilisez les onglets (overview, emails, social, tech, links, meta) pour explorer les donnees",
+          "Mode Batch : collez plusieurs URLs (une par ligne) pour scraper plusieurs sites d'un coup",
+          "Cliquez sur \"Exporter CSV\" pour telecharger tous vos resultats",
+          "Note : certains sites (Doctolib, etc.) bloquent le scraping automatique. Essayez avec des sites publics d'entreprises.",
+        ]}
+      />
+
       <div style={s.card}>
         <div style={s.tabs}>
           <button style={s.tab(mode === "single")} onClick={() => setMode("single")}>URL unique</button>
-          <button style={s.tab(mode === "batch")} onClick={() => setMode("batch")}>Batch</button>
+          <button style={s.tab(mode === "batch")} onClick={() => setMode("batch")}>Batch (plusieurs URLs)</button>
         </div>
 
         {mode === "single" ? (
           <form onSubmit={handleScrape} style={s.form}>
-            <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://exemple.com" required style={s.input} />
-            <button type="submit" disabled={loading} style={s.btn()}>{loading ? "Scraping..." : "Scraper"}</button>
+            <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.entreprise.fr" required style={s.input} />
+            <button type="submit" disabled={loading} style={{ ...s.btn(), ...(loading ? s.btnDisabled : {}) }}>
+              {loading ? "Scraping en cours..." : "Scraper"}
+            </button>
           </form>
         ) : (
           <form onSubmit={handleBatch}>
             <textarea
               value={batchUrls} onChange={(e) => setBatchUrls(e.target.value)}
-              placeholder={"https://site1.com\nhttps://site2.com\nhttps://site3.com"}
-              rows={5} style={{ ...s.input, width: "100%", resize: "vertical", marginBottom: "0.75rem" }}
+              placeholder={"https://www.site1.fr\nhttps://www.site2.com\nhttps://www.site3.fr"}
+              rows={5} style={{ ...s.input, width: "100%", resize: "vertical", marginBottom: "0.75rem", flex: "none" }}
             />
-            <button type="submit" disabled={loading} style={s.btn()}>{loading ? "Scraping..." : "Scraper tout"}</button>
+            <button type="submit" disabled={loading} style={{ ...s.btn(), ...(loading ? s.btnDisabled : {}) }}>
+              {loading ? "Scraping en cours..." : "Scraper tout"}
+            </button>
           </form>
         )}
-        {error && <p style={s.error}>{error}</p>}
+        {error && <div style={s.error}>{error}</div>}
+        {success && <div style={s.success}>{success}</div>}
       </div>
 
       {result && <ResultDetail result={result} />}
 
-      {history.length > 0 && (
-        <div style={s.card}>
-          <h3 style={{ marginTop: 0 }}>Historique ({history.length})</h3>
+      <div style={s.card}>
+        <h3 style={{ marginTop: 0 }}>Historique ({history.length})</h3>
+        {historyLoading && <p style={s.meta}>Chargement...</p>}
+        {!historyLoading && history.length === 0 && <p style={s.meta}>Aucun scraping effectue. Essayez avec une URL ci-dessus !</p>}
+        {history.length > 0 && (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
             <thead>
               <tr style={{ textAlign: "left", borderBottom: "2px solid #eee" }}>
                 <th style={{ padding: "0.5rem" }}>Titre</th>
                 <th>Domaine</th>
                 <th>Emails</th>
+                <th>Tel.</th>
                 <th>Tech</th>
                 <th>Date</th>
                 <th></th>
@@ -232,19 +310,23 @@ export default function ScrapingPage() {
             </thead>
             <tbody>
               {history.map((item) => (
-                <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0", cursor: "pointer", background: selectedId === item.id ? "#f0f4ff" : "transparent" }} onClick={() => viewDetail(item.id)}>
-                  <td style={{ padding: "0.5rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title || item.url}</td>
+                <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0", cursor: "pointer", background: selectedId === item.id ? "#f0f4ff" : "transparent" }}
+                  onClick={() => viewDetail(item.id)}>
+                  <td style={{ padding: "0.5rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title || "Sans titre"}</td>
                   <td>{item.domain}</td>
-                  <td>{(item.extracted_emails || []).length}</td>
-                  <td>{(item.technologies || []).slice(0, 2).join(", ")}</td>
+                  <td><strong>{(item.extracted_emails || []).length}</strong></td>
+                  <td>{(item.extracted_phones || []).length}</td>
+                  <td style={s.meta}>{(item.technologies || []).slice(0, 2).join(", ") || "-"}</td>
                   <td style={s.meta}>{new Date(item.created_at).toLocaleDateString("fr-FR")}</td>
-                  <td><button style={s.btnSm("#4361ee")} onClick={(e) => { e.stopPropagation(); viewDetail(item.id); }}>Voir</button></td>
+                  <td>
+                    <button style={s.btnSm("#f87171")} onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}>X</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

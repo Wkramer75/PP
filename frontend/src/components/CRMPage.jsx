@@ -17,9 +17,37 @@ const s = {
   grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" },
   badge: (color) => ({ display: "inline-block", padding: "0.2rem 0.6rem", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600, background: color + "20", color }),
   meta: { fontSize: "0.8rem", color: "#888" },
+  error: { background: "#fef2f2", color: "#dc2626", padding: "0.75rem 1rem", borderRadius: 8, marginBottom: "1rem", fontSize: "0.9rem" },
   modal: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
   modalContent: { background: "#fff", borderRadius: 12, padding: "2rem", maxWidth: 600, width: "90%", maxHeight: "80vh", overflowY: "auto" },
+  guide: { background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "1.25rem", marginBottom: "1.5rem" },
+  guideTitle: { fontSize: "1rem", fontWeight: 700, color: "#1e40af", marginBottom: "0.75rem" },
+  guideStep: { display: "flex", gap: "0.75rem", marginBottom: "0.6rem", fontSize: "0.9rem", color: "#1e3a5f" },
+  guideNumber: { background: "#4361ee", color: "#fff", borderRadius: "50%", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, flexShrink: 0 },
+  guideToggle: { background: "none", border: "none", color: "#4361ee", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, padding: 0 },
 };
+
+function Guide({ title, steps, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={s.guide}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={s.guideTitle}>{title}</div>
+        <button style={s.guideToggle} onClick={() => setOpen(!open)}>{open ? "Masquer" : "Voir le guide"}</button>
+      </div>
+      {open && (
+        <div style={{ marginTop: "0.5rem" }}>
+          {steps.map((step, i) => (
+            <div key={i} style={s.guideStep}>
+              <div style={s.guideNumber}>{i + 1}</div>
+              <div>{step}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ProspectForm({ initial, onSave, onCancel }) {
   const [form, setForm] = useState(initial || {
@@ -35,7 +63,7 @@ function ProspectForm({ initial, onSave, onCancel }) {
       <div style={s.grid3}>
         <div><label>Prenom</label><input style={s.input} value={form.first_name || ""} onChange={(e) => set("first_name", e.target.value)} /></div>
         <div><label>Nom</label><input style={s.input} value={form.last_name || ""} onChange={(e) => set("last_name", e.target.value)} /></div>
-        <div><label>Email</label><input style={s.input} value={form.email || ""} onChange={(e) => set("email", e.target.value)} /></div>
+        <div><label>Email</label><input style={s.input} type="email" value={form.email || ""} onChange={(e) => set("email", e.target.value)} /></div>
       </div>
       <div style={s.grid3}>
         <div><label>Telephone</label><input style={s.input} value={form.phone || ""} onChange={(e) => set("phone", e.target.value)} /></div>
@@ -78,38 +106,52 @@ export default function CRMPage() {
   const [search, setSearch] = useState("");
   const [activities, setActivities] = useState([]);
   const [newNote, setNewNote] = useState("");
+  const [error, setError] = useState(null);
 
   const load = () => {
     let url = `${API}/api/crm/prospects?limit=100`;
     if (filter) url += `&stage=${filter}`;
     if (search) url += `&search=${search}`;
-    fetch(url).then((r) => r.json()).then(setProspects).catch(() => {});
+    fetch(url)
+      .then((r) => { if (!r.ok) throw new Error("Erreur serveur"); return r.json(); })
+      .then(setProspects)
+      .catch((e) => setError("Impossible de charger les prospects. Verifiez que le backend tourne."));
   };
 
   useEffect(() => { load(); }, [filter, search]);
 
   const viewProspect = async (id) => {
-    const res = await fetch(`${API}/api/crm/prospects/${id}`);
-    const data = await res.json();
-    setSelected(data);
-    setActivities(data.activities || []);
-    setEditMode(false);
+    try {
+      const res = await fetch(`${API}/api/crm/prospects/${id}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setSelected(data);
+      setActivities(data.activities || []);
+      setEditMode(false);
+      setError(null);
+    } catch { setError("Impossible de charger ce prospect."); }
   };
 
   const createProspect = async (form) => {
-    await fetch(`${API}/api/crm/prospects`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setShowForm(false); load();
+    try {
+      const res = await fetch(`${API}/api/crm/prospects`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || "Erreur"); }
+      setShowForm(false); setError(null); load();
+    } catch (e) { setError(e.message); }
   };
 
   const updateProspect = async (form) => {
-    await fetch(`${API}/api/crm/prospects/${selected.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setEditMode(false); viewProspect(selected.id); load();
+    try {
+      const res = await fetch(`${API}/api/crm/prospects/${selected.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.detail || "Erreur"); }
+      setEditMode(false); setError(null); viewProspect(selected.id); load();
+    } catch (e) { setError(e.message); }
   };
 
   const deleteProspect = async (id) => {
@@ -118,13 +160,27 @@ export default function CRMPage() {
     setSelected(null); load();
   };
 
+  const changeStage = async (stage) => {
+    try {
+      const res = await fetch(`${API}/api/crm/prospects/${selected.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage }),
+      });
+      if (!res.ok) throw new Error();
+      viewProspect(selected.id); load();
+    } catch { setError("Erreur lors du changement de stage."); }
+  };
+
   const addNote = async () => {
     if (!newNote.trim()) return;
-    await fetch(`${API}/api/crm/prospects/${selected.id}/activities`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "note", description: newNote }),
-    });
-    setNewNote(""); viewProspect(selected.id);
+    try {
+      const res = await fetch(`${API}/api/crm/prospects/${selected.id}/activities`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "note", description: newNote }),
+      });
+      if (!res.ok) throw new Error();
+      setNewNote(""); viewProspect(selected.id);
+    } catch { setError("Erreur lors de l'ajout de la note."); }
   };
 
   const handleExport = () => {
@@ -143,17 +199,33 @@ export default function CRMPage() {
         </div>
       </div>
 
+      <Guide
+        title="Comment utiliser le CRM ?"
+        defaultOpen={prospects.length === 0}
+        steps={[
+          "Cliquez sur \"+ Nouveau prospect\" pour ajouter un contact manuellement",
+          "Remplissez les infos : nom, email, entreprise, telephone, etc.",
+          "Chaque prospect a un \"stage\" : lead > contacted > qualified > proposal > negotiation > won/lost",
+          "Cliquez sur un prospect dans la liste pour voir ses details",
+          "Changez le stage en cliquant sur les boutons de stage dans la fiche",
+          "Ajoutez des notes dans la section \"Activites\" pour suivre vos echanges",
+          "Astuce : allez dans Scraping, scrapez un site, puis importez les contacts dans le CRM via l'API",
+          "Utilisez la barre de recherche et le filtre par stage pour retrouver vos prospects",
+        ]}
+      />
+
+      {error && <div style={s.error}>{error}</div>}
+
       {/* Filters */}
       <div style={{ ...s.card, display: "flex", gap: "1rem", alignItems: "center" }}>
-        <input style={{ ...s.input, maxWidth: 300 }} placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input style={{ ...s.input, maxWidth: 300 }} placeholder="Rechercher (nom, email, entreprise)..." value={search} onChange={(e) => setSearch(e.target.value)} />
         <select style={s.select} value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="">Tous les stages</option>
           {STAGES.map((st) => <option key={st} value={st}>{st}</option>)}
         </select>
-        <span style={s.meta}>{prospects.length} prospects</span>
+        <span style={s.meta}>{prospects.length} prospect{prospects.length > 1 ? "s" : ""}</span>
       </div>
 
-      {/* New prospect form */}
       {showForm && (
         <div style={s.modal} onClick={() => setShowForm(false)}>
           <div style={s.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -164,7 +236,6 @@ export default function CRMPage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 1fr" : "1fr", gap: "1.5rem" }}>
-        {/* List */}
         <div style={s.card}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
             <thead>
@@ -181,18 +252,17 @@ export default function CRMPage() {
                 <tr key={p.id} onClick={() => viewProspect(p.id)}
                   style={{ borderBottom: "1px solid #f0f0f0", cursor: "pointer", background: selected?.id === p.id ? "#f0f4ff" : "transparent" }}>
                   <td style={{ padding: "0.5rem" }}>{p.first_name || ""} {p.last_name || ""}</td>
-                  <td>{p.email}</td>
-                  <td>{p.company}</td>
+                  <td>{p.email || "-"}</td>
+                  <td>{p.company || "-"}</td>
                   <td><span style={s.badge(STAGE_COLORS[p.stage] || "#94a3b8")}>{p.stage}</span></td>
                   <td>{p.score}</td>
                 </tr>
               ))}
-              {prospects.length === 0 && <tr><td colSpan="5" style={{ ...s.meta, padding: "1rem", textAlign: "center" }}>Aucun prospect</td></tr>}
+              {prospects.length === 0 && <tr><td colSpan="5" style={{ ...s.meta, padding: "1rem", textAlign: "center" }}>Aucun prospect. Cliquez sur "+ Nouveau prospect" pour commencer.</td></tr>}
             </tbody>
           </table>
         </div>
 
-        {/* Detail */}
         {selected && (
           <div>
             <div style={s.card}>
@@ -224,19 +294,13 @@ export default function CRMPage() {
                   </div>
                   {selected.notes && <div style={{ marginTop: "0.75rem" }}><strong>Notes:</strong> {selected.notes}</div>}
 
-                  {/* Quick stage change */}
                   <div style={{ marginTop: "1rem" }}>
-                    <strong>Changer le stage:</strong>
+                    <strong>Changer le stage :</strong>
                     <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
                       {STAGES.map((st) => (
-                        <button key={st} style={s.btnSm(selected.stage === st ? STAGE_COLORS[st] : "#ddd")}
-                          onClick={async () => {
-                            await fetch(`${API}/api/crm/prospects/${selected.id}`, {
-                              method: "PUT", headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ stage: st }),
-                            });
-                            viewProspect(selected.id); load();
-                          }}
+                        <button key={st}
+                          style={{ ...s.btnSm(STAGE_COLORS[st]), opacity: selected.stage === st ? 1 : 0.5 }}
+                          onClick={() => changeStage(st)}
                         >{st}</button>
                       ))}
                     </div>
@@ -245,11 +309,11 @@ export default function CRMPage() {
               )}
             </div>
 
-            {/* Activities */}
             <div style={s.card}>
               <h4 style={{ marginTop: 0 }}>Activites</h4>
               <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-                <input style={{ ...s.input, flex: 1 }} placeholder="Ajouter une note..." value={newNote} onChange={(e) => setNewNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addNote()} />
+                <input style={{ ...s.input, flex: 1 }} placeholder="Ajouter une note..." value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addNote()} />
                 <button style={s.btnSm()} onClick={addNote}>Ajouter</button>
               </div>
               {activities.map((a) => (
@@ -259,7 +323,7 @@ export default function CRMPage() {
                   <span style={{ ...s.meta, marginLeft: "0.5rem" }}>{new Date(a.created_at).toLocaleDateString("fr-FR")}</span>
                 </div>
               ))}
-              {activities.length === 0 && <p style={s.meta}>Aucune activite</p>}
+              {activities.length === 0 && <p style={s.meta}>Aucune activite. Ajoutez une note ci-dessus.</p>}
             </div>
           </div>
         )}
