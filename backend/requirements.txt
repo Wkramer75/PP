@@ -1,13 +1,25 @@
+# Core
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
 psycopg[binary]>=3.2.10
 pydantic-settings==2.7.0
+python-dotenv==1.0.1
+
+# Scraping
 requests==2.32.3
 beautifulsoup4==4.12.3
-python-dotenv==1.0.1
 selenium>=4.25.0
 webdriver-manager>=4.0.2
 lxml>=5.3.0
 fake-useragent>=2.0.3
+
+# Async tasks
+celery[redis]>=5.4.0
+redis>=5.2.0
+
+# Performance
 cachetools>=5.5.0
+
+# AI (optional - works without Ollama too)
+# ollama is accessed via HTTP, no pip package needed

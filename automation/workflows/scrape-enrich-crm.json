@@ -1,0 +1,55 @@
+{
+  "name": "Scrape > Enrich > CRM Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 6 }] }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/scraping/",
+        "method": "POST",
+        "body": {
+          "json": { "url": "{{$json.url}}" }
+        }
+      },
+      "name": "Scrape URL",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/crm/import-scrape",
+        "method": "POST",
+        "body": {
+          "json": {
+            "scrape_id": "{{$json.id}}",
+            "default_stage": "lead",
+            "default_source": "scraping"
+          }
+        }
+      },
+      "name": "Import to CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/ai/auto-score",
+        "method": "POST"
+      },
+      "name": "Auto Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Scrape URL", "type": "main", "index": 0 }]] },
+    "Scrape URL": { "main": [[{ "node": "Import to CRM", "type": "main", "index": 0 }]] },
+    "Import to CRM": { "main": [[{ "node": "Auto Score", "type": "main", "index": 0 }]] }
+  }
+}
