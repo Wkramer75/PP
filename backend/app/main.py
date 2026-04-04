@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
-from app.database import engine, Base
+from app.database import engine, Base, run_migrations
 
 # Import module routers
 from app.modules.scraping.routes import router as scraping_router
@@ -35,7 +35,10 @@ app.include_router(reporting_router, prefix="/api/reporting", tags=["reporting"]
 
 @app.on_event("startup")
 def on_startup():
+    # Create new tables
     Base.metadata.create_all(bind=engine)
+    # Add missing columns to existing tables
+    run_migrations()
 
 
 @app.get("/api/health")

@@ -47,14 +47,34 @@ function Guide({ title, steps, defaultOpen = false }) {
   );
 }
 
-function ResultDetail({ result }) {
+function ResultDetail({ result, onImportCRM }) {
   const [tab, setTab] = useState("overview");
+  const [importMsg, setImportMsg] = useState(null);
   if (!result) return null;
+
+  const handleImport = async () => {
+    try {
+      const res = await fetch(`${API}/api/crm/import-scrape`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scrape_id: result.id, default_stage: "lead", default_source: "scraping", tags: ["scraping"] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Erreur");
+      setImportMsg(`${Array.isArray(data) ? data.length : 1} prospect(s) importe(s) dans le CRM !`);
+      if (onImportCRM) onImportCRM();
+    } catch (e) { setImportMsg("Erreur: " + e.message); }
+  };
 
   return (
     <div style={s.card}>
-      <h3 style={{ margin: 0 }}>{result.title || "Sans titre"}</h3>
-      <p style={{ ...s.meta, margin: "0.25rem 0" }}>{result.url}</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+        <div>
+          <h3 style={{ margin: 0 }}>{result.title || "Sans titre"}</h3>
+          <p style={{ ...s.meta, margin: "0.25rem 0" }}>{result.url}</p>
+        </div>
+        <button style={s.btnSm("#10b981")} onClick={handleImport}>Importer dans CRM</button>
+      </div>
+      {importMsg && <div style={{ ...s.success, marginTop: "0.5rem", marginBottom: "0.5rem" }}>{importMsg}</div>}
       <div style={{ ...s.meta, marginBottom: "0.75rem" }}>
         Status: {result.status_code} | {result.response_time}s | {result.word_count} mots | Langue: {result.language || "?"}
       </div>

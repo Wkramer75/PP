@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -10,4 +10,7 @@ router = APIRouter()
 @router.get("/dashboard")
 def get_dashboard(db: Session = Depends(get_db)):
     """Get the full dashboard with all metrics."""
-    return service.get_dashboard(db)
+    try:
+        return service.get_dashboard(db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur dashboard: {str(e)[:300]}")
