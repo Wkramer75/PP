@@ -62,6 +62,17 @@ FAKE_EMAIL_DOMAINS = {
 }
 
 
+def _clean_nul(value):
+    """Remove NUL (0x00) bytes that PostgreSQL text fields reject."""
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, list):
+        return [_clean_nul(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _clean_nul(v) for k, v in value.items()}
+    return value
+
+
 # ── Selenium browser ─────────────────────────────────────────────────────────
 
 def _create_driver() -> webdriver.Chrome:
@@ -295,26 +306,26 @@ def scrape_url(url: str, db: Session, depth: int = 0, parent_id: int | None = No
     word_count = len(text.split())
 
     record = ScrapedData(
-        url=str(url),
-        domain=domain,
-        title=title,
-        meta_description=desc,
-        meta_keywords=keywords,
-        og_data=og,
-        raw_content=text[:50000],
-        extracted_emails=emails,
-        extracted_phones=phones,
-        extracted_links=all_links[:200],
-        internal_links=internal[:200],
-        external_links=external[:200],
-        social_media=social,
-        technologies=techs,
-        images=images,
+        url=_clean_nul(str(url)),
+        domain=_clean_nul(domain),
+        title=_clean_nul(title),
+        meta_description=_clean_nul(desc),
+        meta_keywords=_clean_nul(keywords),
+        og_data=_clean_nul(og),
+        raw_content=_clean_nul(text[:50000]),
+        extracted_emails=_clean_nul(emails),
+        extracted_phones=_clean_nul(phones),
+        extracted_links=_clean_nul(all_links[:200]),
+        internal_links=_clean_nul(internal[:200]),
+        external_links=_clean_nul(external[:200]),
+        social_media=_clean_nul(social),
+        technologies=_clean_nul(techs),
+        images=_clean_nul(images),
         headers={},
         status_code=status_code,
         response_time=elapsed,
         word_count=word_count,
-        language=lang,
+        language=_clean_nul(lang),
         is_deep_scrape=depth > 0,
         depth=depth,
         parent_scrape_id=parent_id,
