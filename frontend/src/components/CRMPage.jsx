@@ -1,53 +1,18 @@
 import React, { useState, useEffect } from "react";
+import T from "../theme";
+import Guide from "./Guide";
 const API = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
 const STAGES = ["lead", "contacted", "qualified", "proposal", "negotiation", "won", "lost"];
 const STAGE_COLORS = {
-  lead: "#94a3b8", contacted: "#60a5fa", qualified: "#a78bfa",
-  proposal: "#fbbf24", negotiation: "#fb923c", won: "#34d399", lost: "#f87171",
+  lead: { bg: "rgba(148,163,184,0.15)", fg: "#94a3b8" },
+  contacted: { bg: T.blueSoft, fg: T.blue },
+  qualified: { bg: T.purpleSoft, fg: T.purple },
+  proposal: { bg: T.yellowSoft, fg: T.yellow },
+  negotiation: { bg: T.orangeSoft, fg: T.orange },
+  won: { bg: T.greenSoft, fg: T.green },
+  lost: { bg: T.redSoft, fg: T.red },
 };
-
-const s = {
-  card: { background: "#fff", borderRadius: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.06)", padding: "1.5rem", marginBottom: "1.5rem" },
-  btn: (color = "#4361ee") => ({ padding: "0.6rem 1.2rem", fontSize: "0.9rem", fontWeight: 600, color: "#fff", background: color, border: "none", borderRadius: 8, cursor: "pointer" }),
-  btnSm: (color = "#4361ee") => ({ padding: "0.3rem 0.7rem", fontSize: "0.8rem", fontWeight: 600, color: "#fff", background: color, border: "none", borderRadius: 6, cursor: "pointer" }),
-  input: { padding: "0.5rem 0.75rem", fontSize: "0.9rem", border: "1px solid #ddd", borderRadius: 6, outline: "none", width: "100%" },
-  select: { padding: "0.5rem", fontSize: "0.9rem", border: "1px solid #ddd", borderRadius: 6, outline: "none" },
-  grid3: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem", marginBottom: "1rem" },
-  grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" },
-  badge: (color) => ({ display: "inline-block", padding: "0.2rem 0.6rem", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600, background: color + "20", color }),
-  meta: { fontSize: "0.8rem", color: "#888" },
-  error: { background: "#fef2f2", color: "#dc2626", padding: "0.75rem 1rem", borderRadius: 8, marginBottom: "1rem", fontSize: "0.9rem" },
-  modal: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
-  modalContent: { background: "#fff", borderRadius: 12, padding: "2rem", maxWidth: 600, width: "90%", maxHeight: "80vh", overflowY: "auto" },
-  guide: { background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 12, padding: "1.25rem", marginBottom: "1.5rem" },
-  guideTitle: { fontSize: "1rem", fontWeight: 700, color: "#1e40af", marginBottom: "0.75rem" },
-  guideStep: { display: "flex", gap: "0.75rem", marginBottom: "0.6rem", fontSize: "0.9rem", color: "#1e3a5f" },
-  guideNumber: { background: "#4361ee", color: "#fff", borderRadius: "50%", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700, flexShrink: 0 },
-  guideToggle: { background: "none", border: "none", color: "#4361ee", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, padding: 0 },
-};
-
-function Guide({ title, steps, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div style={s.guide}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={s.guideTitle}>{title}</div>
-        <button style={s.guideToggle} onClick={() => setOpen(!open)}>{open ? "Masquer" : "Voir le guide"}</button>
-      </div>
-      {open && (
-        <div style={{ marginTop: "0.5rem" }}>
-          {steps.map((step, i) => (
-            <div key={i} style={s.guideStep}>
-              <div style={s.guideNumber}>{i + 1}</div>
-              <div>{step}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function ProspectForm({ initial, onSave, onCancel }) {
   const [form, setForm] = useState(initial || {
@@ -55,43 +20,43 @@ function ProspectForm({ initial, onSave, onCancel }) {
     job_title: "", website: "", linkedin: "", city: "", country: "",
     stage: "lead", source: "manual", tags: [], notes: "", score: 0,
   });
-
   const set = (key, val) => setForm((p) => ({ ...p, [key]: val }));
+  const labelStyle = { fontSize: "0.75rem", color: "#666", marginBottom: 3, display: "block", textTransform: "uppercase", letterSpacing: "0.04em" };
 
   return (
     <div>
-      <div style={s.grid3}>
-        <div><label>Prenom</label><input style={s.input} value={form.first_name || ""} onChange={(e) => set("first_name", e.target.value)} /></div>
-        <div><label>Nom</label><input style={s.input} value={form.last_name || ""} onChange={(e) => set("last_name", e.target.value)} /></div>
-        <div><label>Email</label><input style={s.input} type="email" value={form.email || ""} onChange={(e) => set("email", e.target.value)} /></div>
+      <div style={T.grid3}>
+        <div><label style={labelStyle}>Prenom</label><input style={T.input} value={form.first_name || ""} onChange={(e) => set("first_name", e.target.value)} /></div>
+        <div><label style={labelStyle}>Nom</label><input style={T.input} value={form.last_name || ""} onChange={(e) => set("last_name", e.target.value)} /></div>
+        <div><label style={labelStyle}>Email</label><input style={T.input} type="email" value={form.email || ""} onChange={(e) => set("email", e.target.value)} /></div>
       </div>
-      <div style={s.grid3}>
-        <div><label>Telephone</label><input style={s.input} value={form.phone || ""} onChange={(e) => set("phone", e.target.value)} /></div>
-        <div><label>Entreprise</label><input style={s.input} value={form.company || ""} onChange={(e) => set("company", e.target.value)} /></div>
-        <div><label>Poste</label><input style={s.input} value={form.job_title || ""} onChange={(e) => set("job_title", e.target.value)} /></div>
+      <div style={T.grid3}>
+        <div><label style={labelStyle}>Telephone</label><input style={T.input} value={form.phone || ""} onChange={(e) => set("phone", e.target.value)} /></div>
+        <div><label style={labelStyle}>Entreprise</label><input style={T.input} value={form.company || ""} onChange={(e) => set("company", e.target.value)} /></div>
+        <div><label style={labelStyle}>Poste</label><input style={T.input} value={form.job_title || ""} onChange={(e) => set("job_title", e.target.value)} /></div>
       </div>
-      <div style={s.grid3}>
-        <div><label>Site web</label><input style={s.input} value={form.website || ""} onChange={(e) => set("website", e.target.value)} /></div>
-        <div><label>LinkedIn</label><input style={s.input} value={form.linkedin || ""} onChange={(e) => set("linkedin", e.target.value)} /></div>
-        <div><label>Score (0-100)</label><input type="number" min="0" max="100" style={s.input} value={form.score} onChange={(e) => set("score", parseInt(e.target.value) || 0)} /></div>
+      <div style={T.grid3}>
+        <div><label style={labelStyle}>Site web</label><input style={T.input} value={form.website || ""} onChange={(e) => set("website", e.target.value)} /></div>
+        <div><label style={labelStyle}>LinkedIn</label><input style={T.input} value={form.linkedin || ""} onChange={(e) => set("linkedin", e.target.value)} /></div>
+        <div><label style={labelStyle}>Score (0-100)</label><input type="number" min="0" max="100" style={T.input} value={form.score} onChange={(e) => set("score", parseInt(e.target.value) || 0)} /></div>
       </div>
-      <div style={s.grid3}>
-        <div><label>Ville</label><input style={s.input} value={form.city || ""} onChange={(e) => set("city", e.target.value)} /></div>
-        <div><label>Pays</label><input style={s.input} value={form.country || ""} onChange={(e) => set("country", e.target.value)} /></div>
+      <div style={T.grid3}>
+        <div><label style={labelStyle}>Ville</label><input style={T.input} value={form.city || ""} onChange={(e) => set("city", e.target.value)} /></div>
+        <div><label style={labelStyle}>Pays</label><input style={T.input} value={form.country || ""} onChange={(e) => set("country", e.target.value)} /></div>
         <div>
-          <label>Stage</label>
-          <select style={{ ...s.select, width: "100%" }} value={form.stage} onChange={(e) => set("stage", e.target.value)}>
+          <label style={labelStyle}>Stage</label>
+          <select style={{ ...T.select, width: "100%" }} value={form.stage} onChange={(e) => set("stage", e.target.value)}>
             {STAGES.map((st) => <option key={st} value={st}>{st}</option>)}
           </select>
         </div>
       </div>
       <div style={{ marginBottom: "1rem" }}>
-        <label>Notes</label>
-        <textarea style={{ ...s.input, minHeight: 60 }} value={form.notes || ""} onChange={(e) => set("notes", e.target.value)} />
+        <label style={labelStyle}>Notes</label>
+        <textarea style={{ ...T.input, minHeight: 60 }} value={form.notes || ""} onChange={(e) => set("notes", e.target.value)} />
       </div>
       <div style={{ display: "flex", gap: "0.5rem" }}>
-        <button style={s.btn("#4361ee")} onClick={() => onSave(form)}>Sauvegarder</button>
-        {onCancel && <button style={s.btn("#94a3b8")} onClick={onCancel}>Annuler</button>}
+        <button style={T.btn()} onClick={() => onSave(form)}>Sauvegarder</button>
+        {onCancel && <button style={T.btn("#333", "#aaa")} onClick={onCancel}>Annuler</button>}
       </div>
     </div>
   );
@@ -113,9 +78,9 @@ export default function CRMPage() {
     if (filter) url += `&stage=${filter}`;
     if (search) url += `&search=${search}`;
     fetch(url)
-      .then((r) => { if (!r.ok) throw new Error("Erreur serveur"); return r.json(); })
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then(setProspects)
-      .catch((e) => setError("Impossible de charger les prospects. Verifiez que le backend tourne."));
+      .catch(() => setError("Impossible de charger les prospects."));
   };
 
   useEffect(() => { load(); }, [filter, search]);
@@ -192,138 +157,147 @@ export default function CRMPage() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>CRM - Prospects</h1>
+        <div>
+          <h1 style={T.pageTitle}>CRM</h1>
+          <p style={{ color: "#555", fontSize: "0.8rem", margin: "0.25rem 0 0" }}>Gestion des prospects</p>
+        </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button style={s.btnSm("#10b981")} onClick={handleExport}>Exporter CSV</button>
-          <button style={s.btn()} onClick={() => { setShowForm(true); setSelected(null); }}>+ Nouveau prospect</button>
+          <button style={T.btnOutline("#666")} onClick={handleExport}>Exporter CSV</button>
+          <button style={T.btn()} onClick={() => { setShowForm(true); setSelected(null); }}>+ Nouveau</button>
         </div>
       </div>
 
       <Guide
-        title="Comment utiliser le CRM ?"
+        title="Comment utiliser le CRM"
         defaultOpen={prospects.length === 0}
         steps={[
-          "Cliquez sur \"+ Nouveau prospect\" pour ajouter un contact manuellement",
-          "Remplissez les infos : nom, email, entreprise, telephone, etc.",
-          "Chaque prospect a un \"stage\" : lead > contacted > qualified > proposal > negotiation > won/lost",
-          "Cliquez sur un prospect dans la liste pour voir ses details",
-          "Changez le stage en cliquant sur les boutons de stage dans la fiche",
-          "Ajoutez des notes dans la section \"Activites\" pour suivre vos echanges",
-          "Astuce : allez dans Scraping, scrapez un site, puis importez les contacts dans le CRM via l'API",
-          "Utilisez la barre de recherche et le filtre par stage pour retrouver vos prospects",
+          "Cliquez sur \"+ Nouveau\" pour ajouter un prospect",
+          "Remplissez les infos : nom, email, entreprise, etc.",
+          "Chaque prospect a un stage : lead > contacted > qualified > proposal > negotiation > won/lost",
+          "Cliquez sur un prospect pour voir ses details et changer son stage",
+          "Ajoutez des notes pour suivre vos echanges",
+          "Importez des prospects depuis Scraping via le bouton \"Importer CRM\"",
         ]}
       />
 
-      {error && <div style={s.error}>{error}</div>}
+      {error && <div style={T.error}>{error}</div>}
 
       {/* Filters */}
-      <div style={{ ...s.card, display: "flex", gap: "1rem", alignItems: "center" }}>
-        <input style={{ ...s.input, maxWidth: 300 }} placeholder="Rechercher (nom, email, entreprise)..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select style={s.select} value={filter} onChange={(e) => setFilter(e.target.value)}>
+      <div style={{ ...T.card, display: "flex", gap: "0.75rem", alignItems: "center" }}>
+        <input style={{ ...T.input, maxWidth: 280 }} placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select style={T.select} value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="">Tous les stages</option>
           {STAGES.map((st) => <option key={st} value={st}>{st}</option>)}
         </select>
-        <span style={s.meta}>{prospects.length} prospect{prospects.length > 1 ? "s" : ""}</span>
+        <span style={{ ...T.meta, marginLeft: "auto" }}>{prospects.length} prospect{prospects.length > 1 ? "s" : ""}</span>
       </div>
 
       {showForm && (
-        <div style={s.modal} onClick={() => setShowForm(false)}>
-          <div style={s.modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>Nouveau prospect</h3>
+        <div style={T.modal} onClick={() => setShowForm(false)}>
+          <div style={T.modalContent} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, color: "#fff" }}>Nouveau prospect</h3>
             <ProspectForm onSave={createProspect} onCancel={() => setShowForm(false)} />
           </div>
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 1fr" : "1fr", gap: "1.5rem" }}>
-        <div style={s.card}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 1fr" : "1fr", gap: "1rem" }}>
+        <div style={T.card}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
             <thead>
-              <tr style={{ textAlign: "left", borderBottom: "2px solid #eee" }}>
-                <th style={{ padding: "0.5rem" }}>Nom</th>
-                <th>Email</th>
-                <th>Entreprise</th>
-                <th>Stage</th>
-                <th>Score</th>
+              <tr style={{ textAlign: "left", borderBottom: "1px solid #2a2a2a" }}>
+                {["Nom", "Email", "Entreprise", "Stage", "Score"].map((h) => (
+                  <th key={h} style={{ padding: "0.5rem", color: "#555", fontWeight: 500, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {prospects.map((p) => (
-                <tr key={p.id} onClick={() => viewProspect(p.id)}
-                  style={{ borderBottom: "1px solid #f0f0f0", cursor: "pointer", background: selected?.id === p.id ? "#f0f4ff" : "transparent" }}>
-                  <td style={{ padding: "0.5rem" }}>{p.first_name || ""} {p.last_name || ""}</td>
-                  <td>{p.email || "-"}</td>
-                  <td>{p.company || "-"}</td>
-                  <td><span style={s.badge(STAGE_COLORS[p.stage] || "#94a3b8")}>{p.stage}</span></td>
-                  <td>{p.score}</td>
-                </tr>
-              ))}
-              {prospects.length === 0 && <tr><td colSpan="5" style={{ ...s.meta, padding: "1rem", textAlign: "center" }}>Aucun prospect. Cliquez sur "+ Nouveau prospect" pour commencer.</td></tr>}
+              {prospects.map((p) => {
+                const sc = STAGE_COLORS[p.stage] || { bg: T.accentSoft, fg: "#888" };
+                return (
+                  <tr key={p.id} onClick={() => viewProspect(p.id)}
+                    style={{ borderBottom: "1px solid #1e1e1e", cursor: "pointer", background: selected?.id === p.id ? "rgba(255,255,255,0.03)" : "transparent" }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = selected?.id === p.id ? "rgba(255,255,255,0.03)" : "transparent"}
+                  >
+                    <td style={{ padding: "0.6rem 0.5rem", color: "#ccc" }}>{p.first_name || ""} {p.last_name || ""}</td>
+                    <td style={{ color: "#888" }}>{p.email || "-"}</td>
+                    <td style={{ color: "#888" }}>{p.company || "-"}</td>
+                    <td><span style={T.badge(sc.bg, sc.fg)}>{p.stage}</span></td>
+                    <td style={{ color: "#888" }}>{p.score}</td>
+                  </tr>
+                );
+              })}
+              {prospects.length === 0 && <tr><td colSpan="5" style={{ ...T.meta, padding: "1.5rem", textAlign: "center" }}>Aucun prospect.</td></tr>}
             </tbody>
           </table>
         </div>
 
         {selected && (
           <div>
-            <div style={s.card}>
+            <div style={T.card}>
               {editMode ? (
                 <ProspectForm initial={selected} onSave={updateProspect} onCancel={() => setEditMode(false)} />
               ) : (
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                     <div>
-                      <h3 style={{ margin: 0 }}>{selected.first_name} {selected.last_name}</h3>
-                      <p style={s.meta}>{selected.job_title}{selected.job_title && selected.company ? " @ " : ""}{selected.company}</p>
+                      <h3 style={{ margin: 0, color: "#fff", fontSize: "1.1rem" }}>{selected.first_name} {selected.last_name}</h3>
+                      <p style={{ ...T.meta, margin: "0.2rem 0 0" }}>{selected.job_title}{selected.job_title && selected.company ? " @ " : ""}{selected.company}</p>
                     </div>
                     <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <button style={s.btnSm("#4361ee")} onClick={() => setEditMode(true)}>Modifier</button>
-                      <button style={s.btnSm("#f87171")} onClick={() => deleteProspect(selected.id)}>Supprimer</button>
+                      <button style={T.btnSm("#333", "#ccc")} onClick={() => setEditMode(true)}>Modifier</button>
+                      <button style={T.btnSm("transparent", T.red)} onClick={() => deleteProspect(selected.id)}>Supprimer</button>
                     </div>
                   </div>
-                  <div style={{ ...s.grid2, marginTop: "1rem" }}>
-                    <div><strong>Email:</strong> {selected.email || "-"}</div>
-                    <div><strong>Telephone:</strong> {selected.phone || "-"}</div>
-                    <div><strong>Site:</strong> {selected.website || "-"}</div>
-                    <div><strong>LinkedIn:</strong> {selected.linkedin || "-"}</div>
-                    <div><strong>Ville:</strong> {selected.city || "-"}</div>
-                    <div><strong>Pays:</strong> {selected.country || "-"}</div>
-                    <div><strong>Stage:</strong> <span style={s.badge(STAGE_COLORS[selected.stage])}>{selected.stage}</span></div>
-                    <div><strong>Score:</strong> {selected.score}/100</div>
-                    <div><strong>Source:</strong> {selected.source || "-"}</div>
-                    <div><strong>Tags:</strong> {(selected.tags || []).join(", ") || "-"}</div>
+                  <div style={{ ...T.grid2, marginTop: "1rem" }}>
+                    {[
+                      ["Email", selected.email], ["Telephone", selected.phone],
+                      ["Site", selected.website], ["LinkedIn", selected.linkedin],
+                      ["Ville", selected.city], ["Pays", selected.country],
+                    ].map(([label, val]) => (
+                      <div key={label}><span style={{ color: "#555" }}>{label}:</span> {val || "-"}</div>
+                    ))}
+                    <div><span style={{ color: "#555" }}>Stage:</span> <span style={T.badge(STAGE_COLORS[selected.stage]?.bg, STAGE_COLORS[selected.stage]?.fg)}>{selected.stage}</span></div>
+                    <div><span style={{ color: "#555" }}>Score:</span> {selected.score}/100</div>
+                    <div><span style={{ color: "#555" }}>Source:</span> {selected.source || "-"}</div>
+                    <div><span style={{ color: "#555" }}>Tags:</span> {(selected.tags || []).join(", ") || "-"}</div>
                   </div>
-                  {selected.notes && <div style={{ marginTop: "0.75rem" }}><strong>Notes:</strong> {selected.notes}</div>}
+                  {selected.notes && <div style={{ marginTop: "0.75rem", color: "#999" }}>{selected.notes}</div>}
 
                   <div style={{ marginTop: "1rem" }}>
-                    <strong>Changer le stage :</strong>
-                    <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
-                      {STAGES.map((st) => (
-                        <button key={st}
-                          style={{ ...s.btnSm(STAGE_COLORS[st]), opacity: selected.stage === st ? 1 : 0.5 }}
-                          onClick={() => changeStage(st)}
-                        >{st}</button>
-                      ))}
+                    <div style={{ ...T.sectionTitle, marginBottom: "0.4rem" }}>Changer le stage</div>
+                    <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
+                      {STAGES.map((st) => {
+                        const sc = STAGE_COLORS[st];
+                        return (
+                          <button key={st}
+                            style={{ ...T.btnSm(selected.stage === st ? sc.fg : "#222", selected.stage === st ? "#fff" : sc.fg), border: `1px solid ${sc.fg}40`, opacity: selected.stage === st ? 1 : 0.6 }}
+                            onClick={() => changeStage(st)}
+                          >{st}</button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            <div style={s.card}>
-              <h4 style={{ marginTop: 0 }}>Activites</h4>
+            <div style={T.card}>
+              <div style={T.sectionTitle}>Activites</div>
               <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-                <input style={{ ...s.input, flex: 1 }} placeholder="Ajouter une note..." value={newNote}
+                <input style={{ ...T.input, flex: 1 }} placeholder="Ajouter une note..." value={newNote}
                   onChange={(e) => setNewNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addNote()} />
-                <button style={s.btnSm()} onClick={addNote}>Ajouter</button>
+                <button style={T.btnSm()} onClick={addNote}>Ajouter</button>
               </div>
               {activities.map((a) => (
-                <div key={a.id} style={{ borderBottom: "1px solid #f0f0f0", padding: "0.5rem 0" }}>
-                  <span style={s.badge(a.type === "stage_change" ? "#f59e0b" : "#4361ee")}>{a.type}</span>{" "}
-                  {a.description}
-                  <span style={{ ...s.meta, marginLeft: "0.5rem" }}>{new Date(a.created_at).toLocaleDateString("fr-FR")}</span>
+                <div key={a.id} style={{ borderBottom: "1px solid #1e1e1e", padding: "0.5rem 0" }}>
+                  <span style={T.badge(a.type === "stage_change" ? T.yellowSoft : T.blueSoft, a.type === "stage_change" ? T.yellow : T.blue)}>{a.type}</span>{" "}
+                  <span style={{ color: "#aaa" }}>{a.description}</span>
+                  <span style={{ ...T.meta, marginLeft: "0.5rem" }}>{new Date(a.created_at).toLocaleDateString("fr-FR")}</span>
                 </div>
               ))}
-              {activities.length === 0 && <p style={s.meta}>Aucune activite. Ajoutez une note ci-dessus.</p>}
+              {activities.length === 0 && <p style={T.meta}>Aucune activite.</p>}
             </div>
           </div>
         )}

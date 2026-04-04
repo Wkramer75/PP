@@ -13,10 +13,15 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
+from cachetools import TTLCache
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
 
 from app.modules.scraping.models import ScrapedData, ScrapingJob
+
+_ua = UserAgent()
+_scraping_stats_cache = TTLCache(maxsize=1, ttl=60)
 
 # ── Patterns ──────────────────────────────────────────────────────────────────
 EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
@@ -84,10 +89,7 @@ def _create_driver() -> webdriver.Chrome:
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument(
-        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    )
+    options.add_argument(f"--user-agent={_ua.random}")
     options.add_argument("--lang=fr-FR")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
@@ -184,7 +186,7 @@ def _extract_domain(url: str) -> str:
 
 def _extract_emails(text: str, html: str) -> list[str]:
     emails = set(EMAIL_PATTERN.findall(text))
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, "lxml")
     for a in soup.find_all("a", href=True):
         if a["href"].startswith("mailto:"):
             email = a["href"].replace("mailto:", "").split("?")[0].strip()
@@ -289,7 +291,7 @@ def scrape_url(url: str, db: Session, depth: int = 0, parent_id: int | None = No
     """Scrape a URL using Selenium (headless Chrome), extract data, persist results."""
     html, final_url, status_code, elapsed = _fetch_page(str(url))
 
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, "lxml")
 
     title = soup.title.string.strip() if soup.title and soup.title.string else None
     text = soup.get_text(separator=" ", strip=True)
@@ -439,6 +441,10 @@ def search_scrapes(db: Session, query: str, skip: int = 0, limit: int = 50) -> l
 
 
 def get_scraping_stats(db: Session) -> dict:
+    cache_key = "stats"
+    if cache_key in _scraping_stats_cache:
+        return _scraping_stats_cache[cache_key]
+
     total = db.query(ScrapedData).count()
     scrapes = db.query(ScrapedData).all()
 
@@ -464,7 +470,7 @@ def get_scraping_stats(db: Session) -> dict:
         .all()
     )
 
-    return {
+    result = {
         "total_scrapes": total,
         "total_emails": all_emails,
         "total_phones": all_phones,
@@ -473,6 +479,8 @@ def get_scraping_stats(db: Session) -> dict:
         "top_technologies": top_techs,
         "recent_scrapes": recent,
     }
+    _scraping_stats_cache[cache_key] = result
+    return result
 
 
 def get_all_jobs(db: Session, skip: int = 0, limit: int = 20) -> list[ScrapingJob]:

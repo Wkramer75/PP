@@ -1,15 +1,22 @@
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
+from cachetools import TTLCache
 from sqlalchemy.orm import Session
 
 from app.modules.scraping.models import ScrapedData
 from app.modules.crm.models import Prospect, Activity
 from app.modules.email.models import EmailCampaign
 
+_dashboard_cache = TTLCache(maxsize=1, ttl=30)
+
 
 def get_dashboard(db: Session) -> dict:
     """Global dashboard with all key metrics."""
+    cache_key = "dashboard"
+    if cache_key in _dashboard_cache:
+        return _dashboard_cache[cache_key]
+
     now = datetime.now(timezone.utc)
     last_7_days = now - timedelta(days=7)
     last_30_days = now - timedelta(days=30)
@@ -72,7 +79,7 @@ def get_dashboard(db: Session) -> dict:
     except Exception:
         pass
 
-    return {
+    result = {
         "scraping": {
             "total": total_scrapes,
             "total_emails_found": total_emails_found,
@@ -95,3 +102,5 @@ def get_dashboard(db: Session) -> dict:
         },
         "activity_timeline": activity_timeline,
     }
+    _dashboard_cache[cache_key] = result
+    return result

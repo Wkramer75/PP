@@ -4,46 +4,60 @@ import CRMPage from "./components/CRMPage";
 import EmailPage from "./components/EmailPage";
 import DashboardPage from "./components/DashboardPage";
 
-const NAV_ITEMS = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "scraping", label: "Scraping" },
-  { key: "crm", label: "CRM" },
-  { key: "email", label: "Email" },
+const NAV = [
+  { key: "dashboard", label: "Dashboard", icon: "\u25A3" },
+  { key: "scraping", label: "Scraping", icon: "\u29BE" },
+  { key: "crm", label: "CRM", icon: "\u2B21" },
+  { key: "email", label: "Email", icon: "\u2709" },
 ];
-
-const styles = {
-  app: { display: "flex", minHeight: "100vh", fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", color: "#1a1a2e", background: "#f0f2f5" },
-  sidebar: { width: 220, background: "#1a1a2e", color: "#fff", padding: "1.5rem 0", display: "flex", flexDirection: "column", flexShrink: 0 },
-  logo: { textAlign: "center", fontSize: "1.1rem", fontWeight: 700, padding: "0 1rem 1.5rem", borderBottom: "1px solid #2d2d4a" },
-  nav: { marginTop: "1rem" },
-  navItem: { padding: "0.75rem 1.5rem", cursor: "pointer", fontSize: "0.95rem", display: "flex", alignItems: "center", gap: "0.5rem", transition: "background 0.2s" },
-  navItemActive: { background: "#4361ee", borderRadius: "0 8px 8px 0", marginRight: "0.5rem" },
-  main: { flex: 1, padding: "1.5rem 2rem", overflowY: "auto" },
-  pageTitle: { fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" },
-};
 
 function App() {
   const [page, setPage] = useState("dashboard");
 
   return (
-    <div style={styles.app}>
-      <aside style={styles.sidebar}>
-        <div style={styles.logo}>Sales Prospecting</div>
-        <nav style={styles.nav}>
-          {NAV_ITEMS.map((item) => (
-            <div
-              key={item.key}
-              onClick={() => setPage(item.key)}
-              style={{ ...styles.navItem, ...(page === item.key ? styles.navItemActive : {}) }}
-              onMouseEnter={(e) => { if (page !== item.key) e.target.style.background = "#2d2d4a"; }}
-              onMouseLeave={(e) => { if (page !== item.key) e.target.style.background = "transparent"; }}
-            >
-              {item.label}
-            </div>
-          ))}
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", color: "#e5e5e5", background: "#0f0f0f" }}>
+      {/* Sidebar */}
+      <aside style={{ width: 200, background: "#111", borderRight: "1px solid #1e1e1e", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <div style={{ padding: "1.5rem 1.25rem 1.25rem", borderBottom: "1px solid #1e1e1e" }}>
+          <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>Prospect</div>
+          <div style={{ fontSize: "0.65rem", color: "#555", marginTop: 2, letterSpacing: "0.1em", textTransform: "uppercase" }}>Sales Tool</div>
+        </div>
+        <nav style={{ marginTop: "0.5rem", flex: 1 }}>
+          {NAV.map((item) => {
+            const active = page === item.key;
+            return (
+              <div
+                key={item.key}
+                onClick={() => setPage(item.key)}
+                style={{
+                  padding: "0.65rem 1.25rem",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: active ? 600 : 400,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem",
+                  color: active ? "#fff" : "#666",
+                  background: active ? "rgba(255,255,255,0.05)" : "transparent",
+                  borderLeft: active ? "2px solid #fff" : "2px solid transparent",
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => { if (!active) { e.currentTarget.style.color = "#aaa"; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }}
+                onMouseLeave={(e) => { if (!active) { e.currentTarget.style.color = "#666"; e.currentTarget.style.background = "transparent"; } }}
+              >
+                <span style={{ fontSize: "1rem", opacity: 0.7 }}>{item.icon}</span>
+                {item.label}
+              </div>
+            );
+          })}
         </nav>
+        <div style={{ padding: "1rem 1.25rem", borderTop: "1px solid #1e1e1e", fontSize: "0.7rem", color: "#444" }}>
+          v1.0 — Selenium
+        </div>
       </aside>
-      <main style={styles.main}>
+
+      {/* Main content */}
+      <main style={{ flex: 1, padding: "1.5rem 2rem", overflowY: "auto", background: "#0f0f0f" }}>
         {page === "dashboard" && <DashboardPage />}
         {page === "scraping" && <ScrapingPage />}
         {page === "crm" && <CRMPage />}
