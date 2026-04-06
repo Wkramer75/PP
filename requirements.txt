@@ -4,3 +4,5 @@ beautifulsoup4==4.12.3
 anthropic==0.39.0
 python-dotenv==1.0.1
 twilio==9.3.7
+holehe==1.61
+h8mail==2.5.6
