@@ -1,0 +1,279 @@
+version: "3.9"
+
+services:
+  # ══════════════════════════════════════════════════════════════════════
+  # CORE INFRASTRUCTURE
+  # ══════════════════════════════════════════════════════════════════════
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: prospecting
+      POSTGRES_USER: prospect
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-prospect123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prospect -d prospecting"]
+      interval: 5s
+      retries: 5
+    networks:
+      - app-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+    networks:
+      - app-net
+
+  # ══════════════════════════════════════════════════════════════════════
+  # APPLICATION (our FastAPI + React app)
+  # ══════════════════════════════════════════════════════════════════════
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://prospect:${DB_PASSWORD:-prospect123}@postgres:5432/prospecting
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      ESPOCRM_URL: http://espocrm:80
+      MAUTIC_URL: http://mautic:80
+      N8N_URL: http://n8n:5678
+      AI_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    networks:
+      - app-net
+
+  celery-worker:
+    build: ./backend
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      DATABASE_URL: postgresql+psycopg://prospect:${DB_PASSWORD:-prospect123}@postgres:5432/prospecting
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - app-net
+
+  celery-beat:
+    build: ./backend
+    command: celery -A app.celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+psycopg://prospect:${DB_PASSWORD:-prospect123}@postgres:5432/prospecting
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - app-net
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    networks:
+      - app-net
+
+  # ══════════════════════════════════════════════════════════════════════
+  # GATEWAY (NGINX reverse proxy)
+  # ══════════════════════════════════════════════════════════════════════
+
+  gateway:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - app-net
+
+  # ══════════════════════════════════════════════════════════════════════
+  # CRM - EspoCRM
+  # ══════════════════════════════════════════════════════════════════════
+
+  espocrm:
+    image: espocrm/espocrm:latest
+    environment:
+      ESPOCRM_DATABASE_HOST: espocrm-db
+      ESPOCRM_DATABASE_NAME: espocrm
+      ESPOCRM_DATABASE_USER: espocrm
+      ESPOCRM_DATABASE_PASSWORD: ${ESPOCRM_DB_PASSWORD:-espocrm123}
+      ESPOCRM_ADMIN_USERNAME: admin
+      ESPOCRM_ADMIN_PASSWORD: ${ESPOCRM_ADMIN_PASSWORD:-admin123}
+      ESPOCRM_SITE_URL: http://localhost/crm
+    volumes:
+      - espocrm_data:/var/www/html
+    depends_on:
+      espocrm-db:
+        condition: service_healthy
+    networks:
+      - app-net
+
+  espocrm-db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: espocrm
+      MARIADB_USER: espocrm
+      MARIADB_PASSWORD: ${ESPOCRM_DB_PASSWORD:-espocrm123}
+      MARIADB_ROOT_PASSWORD: ${ESPOCRM_ROOT_PASSWORD:-root123}
+    volumes:
+      - espocrm_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      retries: 5
+    networks:
+      - app-net
+
+  # ══════════════════════════════════════════════════════════════════════
+  # EMAIL MARKETING - Mautic
+  # ══════════════════════════════════════════════════════════════════════
+
+  mautic:
+    image: mautic/mautic:5-apache
+    environment:
+      MAUTIC_DB_HOST: mautic-db
+      MAUTIC_DB_NAME: mautic
+      MAUTIC_DB_USER: mautic
+      MAUTIC_DB_PASSWORD: ${MAUTIC_DB_PASSWORD:-mautic123}
+      MAUTIC_ADMIN_USERNAME: admin
+      MAUTIC_ADMIN_PASSWORD: ${MAUTIC_ADMIN_PASSWORD:-admin123}
+      MAUTIC_ADMIN_EMAIL: admin@prospect.local
+    volumes:
+      - mautic_data:/var/www/html
+    ports:
+      - "8001:80"
+    depends_on:
+      mautic-db:
+        condition: service_healthy
+    networks:
+      - app-net
+
+  mautic-db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: mautic
+      MARIADB_USER: mautic
+      MARIADB_PASSWORD: ${MAUTIC_DB_PASSWORD:-mautic123}
+      MARIADB_ROOT_PASSWORD: ${MAUTIC_ROOT_PASSWORD:-root123}
+    volumes:
+      - mautic_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      retries: 5
+    networks:
+      - app-net
+
+  # ══════════════════════════════════════════════════════════════════════
+  # AUTOMATION - n8n
+  # ══════════════════════════════════════════════════════════════════════
+
+  n8n:
+    image: n8nio/n8n:latest
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: admin
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:-admin123}
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost/n8n/
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: prospecting
+      DB_POSTGRESDB_USER: prospect
+      DB_POSTGRESDB_PASSWORD: ${DB_PASSWORD:-prospect123}
+      DB_POSTGRESDB_SCHEMA: n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./automation/workflows:/home/node/workflows
+    ports:
+      - "5678:5678"
+    networks:
+      - app-net
+
+  # ══════════════════════════════════════════════════════════════════════
+  # MONITORING - Prometheus + Grafana
+  # ══════════════════════════════════════════════════════════════════════
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - app-net
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    ports:
+      - "3001:3000"
+    networks:
+      - app-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  espocrm_data:
+  espocrm_db_data:
+  mautic_data:
+  mautic_db_data:
+  n8n_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  app-net:
+    driver: bridge
